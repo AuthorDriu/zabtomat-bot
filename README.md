@@ -12,6 +12,8 @@
 - Python 3.10+.
 - Доступ к Matrix homeserver.
 - Access token пользователя/бота Matrix, который имеет право писать в нужную комнату.
+- Для запуска как демон: Linux с `systemd` и права `sudo` для установки сервиса.
+- Для автоматической настройки Zabbix через `install-on-zabbix.py`: Zabbix 7.0+ и API token или учётная запись с правами администратора.
 
 ## Установка
 
@@ -35,6 +37,18 @@ DATABASE_PATH=./database/database.sqlite3
 LOG_DIR=./logs
 ```
 
+Параметры:
+
+| Переменная | Описание |
+| --- | --- |
+| `MATRIX_HOMESERVER` | URL Matrix homeserver, например `https://matrix.example.org` |
+| `MATRIX_ROOM_ID` | ID комнаты Matrix, куда бот будет отправлять уведомления |
+| `MATRIX_ACCESS_TOKEN` | Access token пользователя/бота Matrix |
+| `APP_HOST` | IP-адрес, на котором слушает HTTP-сервер; по умолчанию `127.0.0.1` |
+| `APP_PORT` | Порт HTTP-сервера; по умолчанию `10061` |
+| `DATABASE_PATH` | Путь к SQLite базе; по умолчанию `./database/database.sqlite3` |
+| `LOG_DIR` | Каталог для файлов логов; по умолчанию `./logs` |
+
 ## Запуск
 
 ```bash
@@ -47,6 +61,52 @@ python run.py
 
 ```bash
 curl http://127.0.0.1:10061/health
+```
+
+## Запуск как демон с автозапуском
+
+Самый простой вариант для Linux-сервера — запустить бота как `systemd`-сервис. В этом режиме приложение работает в фоне, автоматически стартует после перезагрузки и перезапускается при сбое.
+
+Сначала выполните обычную установку, создайте `.env` и проверьте ручной запуск:
+
+```bash
+python run.py
+```
+
+Установщик ожидает, что зависимости установлены в `.venv` внутри каталога проекта, а файл `.env` уже создан. Каталог проекта не должен содержать пробелов в пути.
+
+Затем установите и запустите сервис:
+
+```bash
+sudo bash install-daemon.sh
+```
+
+Скрипт создаёт `/etc/systemd/system/zabtomat-bot.service` для текущего каталога проекта и пользователя, от имени которого был запущен `sudo`.
+
+Управление сервисом:
+
+```bash
+sudo systemctl status zabtomat-bot
+sudo systemctl restart zabtomat-bot
+sudo systemctl stop zabtomat-bot
+```
+
+Просмотр логов `systemd`:
+
+```bash
+sudo journalctl -u zabtomat-bot -f
+```
+
+Отключить автозапуск и остановить сервис:
+
+```bash
+sudo systemctl disable --now zabtomat-bot
+```
+
+Если вы изменили код или `.env`, перезапустите сервис:
+
+```bash
+sudo systemctl restart zabtomat-bot
 ```
 
 ## Endpoint для Zabbix
@@ -108,6 +168,53 @@ bot_10-07-26_10-00-00.log
 Вывод в STDERR отключён.
 
 ## Пример настройки Zabbix webhook
+
+### Автоматическая настройка Zabbix
+
+В проекте есть скрипт `install-on-zabbix.py`, который автоматически создаёт в Zabbix всё необходимое для отправки уведомлений в бота:
+
+- media type `matrix-problem` для проблем;
+- media type `matrix-solution` для восстановлений;
+- пользователя `matrix-notification`;
+- группу `Matrix notification users`;
+- action `Matrix notifications`.
+
+Пример запуска с API token:
+
+```bash
+python install-on-zabbix.py \
+  --zabbix-url https://zabbix.example.org/zabbix \
+  --api-token YOUR_ZABBIX_API_TOKEN \
+  --bot-url http://127.0.0.1:10061/zabbix
+```
+
+Если `--api-token` не указан, скрипт спросит логин и пароль пользователя Zabbix API интерактивно:
+
+```bash
+python install-on-zabbix.py --zabbix-url https://zabbix.example.org/zabbix
+```
+
+Полезные параметры:
+
+| Параметр | Описание |
+| --- | --- |
+| `--bot-url` | URL endpoint бота, который будет записан в Zabbix; по умолчанию `http://127.0.0.1:10061/zabbix` |
+| `--notification-user` | Имя создаваемого пользователя Zabbix; по умолчанию `matrix-notification` |
+| `--notification-user-password` | Пароль создаваемого пользователя; если не задан, будет сгенерирован |
+| `--user-group` | Имя группы создаваемого пользователя |
+| `--action-name` | Имя создаваемого action |
+| `--no-update-existing` | Не обновлять уже существующие объекты Zabbix |
+| `--insecure` | Не проверять TLS-сертификат Zabbix API |
+
+Также можно передать значения через переменные окружения:
+
+```bash
+ZABBIX_API_TOKEN=YOUR_ZABBIX_API_TOKEN \
+MATRIX_BOT_ZABBIX_URL=http://127.0.0.1:10061/zabbix \
+python install-on-zabbix.py --zabbix-url https://zabbix.example.org/zabbix
+```
+
+### Ручная настройка webhook
 
 Zabbix должен отправлять `POST` запрос на:
 
