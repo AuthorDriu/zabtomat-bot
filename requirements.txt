@@ -1,0 +1,9 @@
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+matrix-nio==0.25.2
+peewee-async==2.0.0
+peewee==4.1.2
+aiosqlite==0.21.0
+python-dotenv==1.1.1
+pydantic-settings==2.10.1
+loguru==0.7.3

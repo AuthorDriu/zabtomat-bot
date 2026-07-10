@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.py[cod]
+.python-version
+.venv/
+venv/
+env/
+database/*.sqlite3
+database/*.sqlite3-*
+logs/
+logs.zip
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
