@@ -81,7 +81,7 @@ python run.py
 sudo bash install-daemon.sh
 ```
 
-Скрипт создаёт `/etc/systemd/system/zabtomat-bot.service` для текущего каталога проекта и пользователя, от имени которого был запущен `sudo`.
+Скрипт создаёт `/etc/systemd/system/zabtomat-bot.service` для текущего каталога проекта и пользователя, от имени которого был запущен `sudo`. Также он создаёт каталоги для `LOG_DIR` и `DATABASE_PATH`, файл архива `logs.zip` и выдаёт на них права пользователю сервиса.
 
 Управление сервисом:
 
@@ -107,6 +107,18 @@ sudo systemctl disable --now zabtomat-bot
 
 ```bash
 sudo systemctl restart zabtomat-bot
+```
+
+Если сервис падает с ошибкой вида `PermissionError: [Errno 13] Permission denied: 'logs'`, переустановите unit обновлённым скриптом из каталога проекта:
+
+```bash
+sudo bash install-daemon.sh
+```
+
+После этого проверьте статус:
+
+```bash
+sudo systemctl status zabtomat-bot
 ```
 
 ## Endpoint для Zabbix

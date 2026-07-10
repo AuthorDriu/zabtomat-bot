@@ -31,6 +31,38 @@ if [[ ! -f "${APP_DIR}/.env" ]]; then
     exit 1
 fi
 
+mapfile -t RUNTIME_PATHS < <("${PYTHON_BIN}" - "${APP_DIR}" <<'PY'
+import sys
+from pathlib import Path
+
+from dotenv import dotenv_values
+
+app_dir = Path(sys.argv[1])
+env = dotenv_values(app_dir / ".env")
+
+log_dir = Path(env.get("LOG_DIR") or "./logs")
+database_path = Path(env.get("DATABASE_PATH") or "./database/database.sqlite3")
+
+if not log_dir.is_absolute():
+    log_dir = app_dir / log_dir
+if not database_path.is_absolute():
+    database_path = app_dir / database_path
+
+print(log_dir.resolve())
+print(database_path.parent.resolve())
+print((log_dir.parent / "logs.zip").resolve())
+PY
+)
+
+LOG_DIR_PATH="${RUNTIME_PATHS[0]}"
+DATABASE_DIR_PATH="${RUNTIME_PATHS[1]}"
+LOG_ARCHIVE_PATH="${RUNTIME_PATHS[2]}"
+
+mkdir -p "${LOG_DIR_PATH}" "${DATABASE_DIR_PATH}"
+touch "${LOG_ARCHIVE_PATH}"
+chown -R "${APP_USER}:${APP_GROUP}" "${LOG_DIR_PATH}" "${DATABASE_DIR_PATH}"
+chown "${APP_USER}:${APP_GROUP}" "${LOG_ARCHIVE_PATH}"
+
 cat > "${SERVICE_FILE}" <<SERVICE
 [Unit]
 Description=Zabbix Matrix Bot
