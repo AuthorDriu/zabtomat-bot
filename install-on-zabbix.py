@@ -63,39 +63,62 @@ catch (error) {
 }
 """.strip()
 
-PROBLEM_SUBJECT = "Problem: {EVENT.NAME}"
-PROBLEM_MESSAGE = """Event ID: {EVENT.ID}
-Status: {EVENT.STATUS}
-Severity: {EVENT.SEVERITY}
-Host: {HOST.NAME}
-Time: {EVENT.DATE} {EVENT.TIME}
+PROBLEM_SUBJECT = "ПРОБЛЕМА [{EVENT.SEVERITY}]: {EVENT.NAME}"
+PROBLEM_MESSAGE = """Событие: ПРОБЛЕМА
+Важность: {EVENT.SEVERITY}
+Статус события: {EVENT.STATUS}
 
-Trigger: {TRIGGER.NAME}
-Operational data: {EVENT.OPDATA}
+Проблема: {EVENT.NAME}
+Триггер: {TRIGGER.NAME}
+Описание триггера: {TRIGGER.DESCRIPTION}
+Оперативные данные: {EVENT.OPDATA}
 
-Item values:
-1. {ITEM.NAME1} ({HOST.NAME1}:{ITEM.KEY1}): {ITEM.VALUE1}
-2. {ITEM.NAME2} ({HOST.NAME2}:{ITEM.KEY2}): {ITEM.VALUE2}
-3. {ITEM.NAME3} ({HOST.NAME3}:{ITEM.KEY3}): {ITEM.VALUE3}
+Узел: {HOST.NAME}
+IP/DNS: {HOST.IP} / {HOST.DNS}
+
+Время начала: {EVENT.DATE} {EVENT.TIME}
+ID проблемы: {EVENT.ID}
+ID триггера: {TRIGGER.ID}
+URL триггера: {TRIGGER.URL}
+
+Значения элементов данных:
+1. {ITEM.NAME1} ({HOST.NAME1}:{ITEM.KEY1}) = {ITEM.VALUE1}
+2. {ITEM.NAME2} ({HOST.NAME2}:{ITEM.KEY2}) = {ITEM.VALUE2}
+3. {ITEM.NAME3} ({HOST.NAME3}:{ITEM.KEY3}) = {ITEM.VALUE3}
+
+Теги события:
+{EVENT.TAGS}
 """.strip()
 
-SOLUTION_SUBJECT = "Resolved: {EVENT.NAME}"
-SOLUTION_MESSAGE = """Problem event ID: {EVENT.ID}
-Recovery event ID: {EVENT.RECOVERY.ID}
-Status: {EVENT.STATUS}
-Severity: {EVENT.SEVERITY}
-Host: {HOST.NAME}
-Problem started: {EVENT.DATE} {EVENT.TIME}
-Resolved at: {EVENT.RECOVERY.DATE} {EVENT.RECOVERY.TIME}
-Duration: {EVENT.DURATION}
+SOLUTION_SUBJECT = "ВОССТАНОВЛЕНО [{EVENT.SEVERITY}]: {EVENT.NAME}"
+SOLUTION_MESSAGE = """Событие: ВОССТАНОВЛЕНИЕ
+Важность: {EVENT.SEVERITY}
+Текущий статус: {EVENT.STATUS}
 
-Trigger: {TRIGGER.NAME}
-Operational data: {EVENT.OPDATA}
+Проблема: {EVENT.NAME}
+Триггер: {TRIGGER.NAME}
+Описание триггера: {TRIGGER.DESCRIPTION}
+Оперативные данные: {EVENT.OPDATA}
 
-Item values:
-1. {ITEM.NAME1} ({HOST.NAME1}:{ITEM.KEY1}): {ITEM.VALUE1}
-2. {ITEM.NAME2} ({HOST.NAME2}:{ITEM.KEY2}): {ITEM.VALUE2}
-3. {ITEM.NAME3} ({HOST.NAME3}:{ITEM.KEY3}): {ITEM.VALUE3}
+Узел: {HOST.NAME}
+IP/DNS: {HOST.IP} / {HOST.DNS}
+
+Начало проблемы: {EVENT.DATE} {EVENT.TIME}
+Восстановлено: {EVENT.RECOVERY.DATE} {EVENT.RECOVERY.TIME}
+Длительность: {EVENT.DURATION}
+
+ID проблемы: {EVENT.ID}
+ID события восстановления: {EVENT.RECOVERY.ID}
+ID триггера: {TRIGGER.ID}
+URL триггера: {TRIGGER.URL}
+
+Последние значения элементов данных:
+1. {ITEM.NAME1} ({HOST.NAME1}:{ITEM.KEY1}) = {ITEM.VALUE1}
+2. {ITEM.NAME2} ({HOST.NAME2}:{ITEM.KEY2}) = {ITEM.VALUE2}
+3. {ITEM.NAME3} ({HOST.NAME3}:{ITEM.KEY3}) = {ITEM.VALUE3}
+
+Теги события:
+{EVENT.TAGS}
 """.strip()
 
 
@@ -311,6 +334,30 @@ def media_type_params(bot_url: str, message_type: str) -> list[dict[str, str]]:
     ]
 
 
+def media_type_message_templates(message_type: str) -> list[dict[str, str]]:
+    if message_type == "problem":
+        return [
+            {
+                "eventsource": "0",
+                "recovery": "0",
+                "subject": PROBLEM_SUBJECT,
+                "message": PROBLEM_MESSAGE,
+            }
+        ]
+
+    if message_type == "solution":
+        return [
+            {
+                "eventsource": "0",
+                "recovery": "1",
+                "subject": SOLUTION_SUBJECT,
+                "message": SOLUTION_MESSAGE,
+            }
+        ]
+
+    raise ValueError(f"Unknown message type: {message_type}")
+
+
 def desired_media_type(name: str, bot_url: str, message_type: str) -> dict[str, Any]:
     return {
         "name": name,
@@ -321,6 +368,7 @@ def desired_media_type(name: str, bot_url: str, message_type: str) -> dict[str, 
         "maxattempts": "3",
         "attempt_interval": "10s",
         "parameters": media_type_params(bot_url, message_type),
+        "message_templates": media_type_message_templates(message_type),
         "description": "Managed by install-on-zabbix.py for Zabbix Matrix Bot.",
     }
 
@@ -544,10 +592,8 @@ def desired_action(action_name: str, userid: str, problem_mediatypeid: str, solu
                 "esc_step_to": 1,
                 "opmessage_usr": [{"userid": userid}],
                 "opmessage": {
-                    "default_msg": 0,
+                    "default_msg": 1,
                     "mediatypeid": problem_mediatypeid,
-                    "subject": PROBLEM_SUBJECT,
-                    "message": PROBLEM_MESSAGE,
                 },
             }
         ],
@@ -556,10 +602,8 @@ def desired_action(action_name: str, userid: str, problem_mediatypeid: str, solu
                 "operationtype": 0,
                 "opmessage_usr": [{"userid": userid}],
                 "opmessage": {
-                    "default_msg": 0,
+                    "default_msg": 1,
                     "mediatypeid": solution_mediatypeid,
-                    "subject": SOLUTION_SUBJECT,
-                    "message": SOLUTION_MESSAGE,
                 },
             }
         ],
