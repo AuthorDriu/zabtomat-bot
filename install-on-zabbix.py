@@ -133,10 +133,9 @@ class ZabbixAPI:
         payload: dict[str, Any] = {
             "jsonrpc": "2.0",
             "method": method,
+            "params": {} if params is None else params,
             "id": self._request_id,
         }
-        if params is not None:
-            payload["params"] = params
 
         headers = {"Content-Type": "application/json-rpc"}
         if authenticated:
