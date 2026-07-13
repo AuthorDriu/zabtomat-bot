@@ -119,6 +119,20 @@ sudo systemctl restart zabtomat-bot
 sudo bash install-daemon.sh
 ```
 
+Если сервис падает с ошибкой SQLite `unable to open database file`, проверьте значение `DATABASE_PATH` в `.env`: это должен быть путь к файлу базы, например `./database/database.sqlite3`, а не к каталогу. Затем переустановите unit тем же скриптом — он создаст каталог базы и выдаст права пользователю сервиса:
+
+```bash
+sudo bash install-daemon.sh
+```
+
+Если ошибка осталась, посмотрите пользователя сервиса и права на каталог базы:
+
+```bash
+systemctl cat zabtomat-bot
+sudo ls -ld /usr/bin/zabtomat-bot /usr/bin/zabtomat-bot/database
+sudo ls -l /usr/bin/zabtomat-bot/database
+```
+
 После этого проверьте статус:
 
 ```bash

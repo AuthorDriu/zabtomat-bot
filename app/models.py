@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import stat
+import tempfile
 from pathlib import Path
 
 import peewee
@@ -8,6 +11,48 @@ from loguru import logger
 
 
 database: peewee_async.SqliteDatabase | None = None
+
+
+def _format_path_status(path: Path) -> str:
+    try:
+        path_stat = path.stat()
+    except OSError as error:
+        return f"{path} (stat failed: {error})"
+
+    return (
+        f"{path} "
+        f"(mode={stat.filemode(path_stat.st_mode)}, uid={path_stat.st_uid}, gid={path_stat.st_gid})"
+    )
+
+
+def _ensure_database_path_is_usable(database_path: Path) -> None:
+    database_dir = database_path.parent
+
+    try:
+        database_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise RuntimeError(f"Cannot create SQLite database directory: {_format_path_status(database_dir)}") from error
+
+    if not database_dir.is_dir():
+        raise RuntimeError(f"SQLite database directory path is not a directory: {_format_path_status(database_dir)}")
+
+    if database_path.exists() and not database_path.is_file():
+        raise RuntimeError(f"SQLite database path is not a file: {_format_path_status(database_path)}")
+
+    if database_path.exists() and not os.access(database_path, os.R_OK | os.W_OK, effective_ids=True):
+        raise RuntimeError(
+            "SQLite database file is not readable and writable by the current process: "
+            f"{_format_path_status(database_path)}; process uid={os.geteuid()}, gid={os.getegid()}"
+        )
+
+    try:
+        with tempfile.NamedTemporaryFile(prefix=".write-test-", dir=database_dir):
+            pass
+    except OSError as error:
+        raise RuntimeError(
+            "SQLite database directory is not writable by the current process: "
+            f"{_format_path_status(database_dir)}; process uid={os.geteuid()}, gid={os.getegid()}"
+        ) from error
 
 
 class BaseModel(peewee_async.AioModel):
@@ -36,7 +81,7 @@ def init_database(database_path: Path) -> None:
     global database
 
     logger.info("Initializing SQLite database: {}", database_path)
-    database_path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_database_path_is_usable(database_path)
 
     database = peewee_async.SqliteDatabase(str(database_path))
     BaseModel._meta.database = database
