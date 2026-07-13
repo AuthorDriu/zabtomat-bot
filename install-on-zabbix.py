@@ -39,6 +39,9 @@ try {
     if (!params.problem_ident) {
         throw 'Parameter "problem_ident" is required.';
     }
+    if (params.message_type === 'update' && !params.event_id) {
+        throw 'Parameter "event_id" is required for update notifications.';
+    }
 
     var payload = {
         message_type: params.message_type,
@@ -46,6 +49,9 @@ try {
         subject_text: params.subject_text || '',
         body_text: params.body_text || ''
     };
+    if (params.event_id) {
+        payload.event_id = params.event_id;
+    }
 
     var request = new HttpRequest();
     request.addHeader('Content-Type: application/json');
@@ -140,6 +146,7 @@ IP/DNS: {HOST.IP} / {HOST.DNS}
 Длительность: {EVENT.DURATION}
 
 ID проблемы: {EVENT.ID}
+ID события обновления: {EVENT.UPDATE.TIMESTAMP}
 ID триггера: {TRIGGER.ID}
 URL триггера: {TRIGGER.URL}
 
@@ -361,13 +368,21 @@ def find_one(api: ZabbixAPI, method: str, params: dict[str, Any], id_field: str,
 
 
 def media_type_params(bot_url: str, message_type: str) -> list[dict[str, str]]:
-    return [
+    params = [
         {"name": "url", "value": bot_url},
         {"name": "message_type", "value": message_type},
         {"name": "problem_ident", "value": "{EVENT.ID}"},
         {"name": "subject_text", "value": "{ALERT.SUBJECT}"},
         {"name": "body_text", "value": "{ALERT.MESSAGE}"},
     ]
+    if message_type == "update":
+        params.append(
+            {
+                "name": "event_id",
+                "value": "{EVENT.UPDATE.ACTIONJSON}",
+            }
+        )
+    return params
 
 
 def media_type_message_templates(message_type: str) -> list[dict[str, str]]:

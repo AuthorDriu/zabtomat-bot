@@ -6,8 +6,10 @@
 - `solution` отправляется в Matrix thread под ранее отправленной проблемой.
 - `update` отправляется в Matrix thread под ранее отправленной проблемой.
 - Связка `problem_ident -> Matrix event_id` хранится в SQLite `./database/database.sqlite3`.
-- После успешной отправки `solution` запись о проблеме удаляется.
-- После успешной отправки `update` запись о проблеме сохраняется.
+- Повторный `problem` с уже сохранённым `problem_ident` не отправляется повторно и фиксируется в логах.
+- Для `update` отдельно хранится связка `problem_ident + event_id`; повторное обновление с той же парой не отправляется повторно и фиксируется в логах.
+- Записи создаются только после успешной отправки сообщения в Matrix.
+- После успешной отправки `solution` удаляются все записи, связанные с этой проблемой.
 
 ## Требования
 
@@ -155,10 +157,13 @@ sudo systemctl status zabtomat-bot
 {
   "message_type": "update",
   "problem_ident": "12345",
+  "event_id": "{\"message\":\"Investigating\",\"timestamp\":1710000000}",
   "subject_text": "Updated: High CPU load on web-01",
   "body_text": "User acknowledged the problem"
 }
 ```
+
+Поле `event_id` обязательно для `update` и должно стабильно идентифицировать конкретное событие обновления проблемы. Автоматический установщик Zabbix заполняет его из макросов обновления проблемы.
 
 Формат Matrix-сообщения:
 
@@ -179,6 +184,15 @@ BODY
 | --- | --- | --- |
 | `problem_ident` | text primary key | ID проблемы из Zabbix |
 | `message_ident` | text | Matrix event ID сообщения о проблеме |
+
+Таблица `problem_updates`:
+
+| Поле | Тип | Описание |
+| --- | --- | --- |
+| `problem_ident` | text | ID проблемы из Zabbix |
+| `event_id` | text | ID конкретного события обновления проблемы |
+
+Первичный ключ таблицы `problem_updates` — составной: `problem_ident`, `event_id`.
 
 ## Логи
 
@@ -240,6 +254,12 @@ MATRIX_BOT_ZABBIX_URL=http://127.0.0.1:10061/zabbix \
 python install-on-zabbix.py --zabbix-url https://zabbix.example.org/zabbix
 ```
 
+Автоматическая настройка добавляет параметр `event_id` только в media type `matrix-update`. Zabbix 7.x не предоставляет отдельный публичный макрос `{EVENT.UPDATE.ID}`, поэтому используется макрос с JSON-описанием конкретного обновления:
+
+```text
+{EVENT.UPDATE.ACTIONJSON}
+```
+
 ### Ручная настройка webhook
 
 Zabbix должен отправлять `POST` запрос на:
@@ -254,4 +274,4 @@ http://127.0.0.1:10061/zabbix
 Content-Type: application/json
 ```
 
-Поля JSON должны соответствовать структуре выше: `message_type`, `problem_ident`, `subject_text`, `body_text`.
+Поля JSON должны соответствовать структуре выше: `message_type`, `problem_ident`, `subject_text`, `body_text`. Для `update` также обязательно поле `event_id`.
