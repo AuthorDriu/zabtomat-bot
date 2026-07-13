@@ -34,6 +34,16 @@ class MatrixNotifier:
         logger.info("Solution notification sent: event_id={}", response.event_id)
         return response.event_id
 
+    async def send_update(self, subject: str, body: str, thread_root_event_id: str) -> str:
+        logger.info(
+            "Sending update notification to Matrix room {} in thread {}",
+            self._settings.matrix_room_id,
+            thread_root_event_id,
+        )
+        response = await self._send_message(subject, body, thread_root_event_id=thread_root_event_id)
+        logger.info("Update notification sent: event_id={}", response.event_id)
+        return response.event_id
+
     async def _send_message(
         self,
         subject: str,

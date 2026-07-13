@@ -23,6 +23,7 @@ DEFAULT_ACTION_NAME = "Matrix notifications"
 DEFAULT_BOT_URL = "http://127.0.0.1:10061/zabbix"
 PROBLEM_MEDIA_TYPE_NAME = "matrix-problem"
 SOLUTION_MEDIA_TYPE_NAME = "matrix-solution"
+UPDATE_MEDIA_TYPE_NAME = "matrix-update"
 MEDIA_SENDTO = "zabbix-matrix-bot"
 
 WEBHOOK_SCRIPT = r"""
@@ -111,6 +112,41 @@ ID проблемы: {EVENT.ID}
 ID события восстановления: {EVENT.RECOVERY.ID}
 ID триггера: {TRIGGER.ID}
 URL триггера: {TRIGGER.URL}
+
+Последние значения элементов данных:
+1. {ITEM.NAME1} ({HOST.NAME1}:{ITEM.KEY1}) = {ITEM.VALUE1}
+2. {ITEM.NAME2} ({HOST.NAME2}:{ITEM.KEY2}) = {ITEM.VALUE2}
+3. {ITEM.NAME3} ({HOST.NAME3}:{ITEM.KEY3}) = {ITEM.VALUE3}
+
+Теги события:
+{EVENT.TAGS}
+""".strip()
+
+UPDATE_SUBJECT = "ОБНОВЛЕНИЕ [{EVENT.SEVERITY}]: {EVENT.NAME}"
+UPDATE_MESSAGE = """Событие: ОБНОВЛЕНИЕ ПРОБЛЕМЫ
+Важность: {EVENT.SEVERITY}
+Текущий статус: {EVENT.STATUS}
+
+Проблема: {EVENT.NAME}
+Триггер: {TRIGGER.NAME}
+Описание триггера: {TRIGGER.DESCRIPTION}
+Оперативные данные: {EVENT.OPDATA}
+
+Узел: {HOST.NAME}
+IP/DNS: {HOST.IP} / {HOST.DNS}
+
+Начало проблемы: {EVENT.DATE} {EVENT.TIME}
+Обновлено: {EVENT.UPDATE.DATE} {EVENT.UPDATE.TIME}
+Длительность: {EVENT.DURATION}
+
+ID проблемы: {EVENT.ID}
+ID триггера: {TRIGGER.ID}
+URL триггера: {TRIGGER.URL}
+
+Пользователь: {USER.FULLNAME} ({USER.USERNAME})
+Действие: {EVENT.UPDATE.ACTION}
+Сообщение обновления:
+{EVENT.UPDATE.MESSAGE}
 
 Последние значения элементов данных:
 1. {ITEM.NAME1} ({HOST.NAME1}:{ITEM.KEY1}) = {ITEM.VALUE1}
@@ -355,6 +391,16 @@ def media_type_message_templates(message_type: str) -> list[dict[str, str]]:
             }
         ]
 
+    if message_type == "update":
+        return [
+            {
+                "eventsource": "0",
+                "recovery": "2",
+                "subject": UPDATE_SUBJECT,
+                "message": UPDATE_MESSAGE,
+            }
+        ]
+
     raise ValueError(f"Unknown message type: {message_type}")
 
 
@@ -519,10 +565,15 @@ def ensure_user(
     usrgrpid: str,
     problem_mediatypeid: str,
     solution_mediatypeid: str,
+    update_mediatypeid: str,
     password: str | None,
     no_update: bool,
 ) -> str:
-    desired_medias = [desired_user_media(problem_mediatypeid), desired_user_media(solution_mediatypeid)]
+    desired_medias = [
+        desired_user_media(problem_mediatypeid),
+        desired_user_media(solution_mediatypeid),
+        desired_user_media(update_mediatypeid),
+    ]
     existing = find_one(
         api,
         "user.get",
@@ -574,7 +625,13 @@ def compact_user_groups(existing: list[dict[str, Any]], required_usrgrpid: str) 
     return result
 
 
-def desired_action(action_name: str, userid: str, problem_mediatypeid: str, solution_mediatypeid: str) -> dict[str, Any]:
+def desired_action(
+    action_name: str,
+    userid: str,
+    problem_mediatypeid: str,
+    solution_mediatypeid: str,
+    update_mediatypeid: str,
+) -> dict[str, Any]:
     return {
         "name": action_name,
         "eventsource": 0,
@@ -607,6 +664,16 @@ def desired_action(action_name: str, userid: str, problem_mediatypeid: str, solu
                 },
             }
         ],
+        "update_operations": [
+            {
+                "operationtype": 0,
+                "opmessage_usr": [{"userid": userid}],
+                "opmessage": {
+                    "default_msg": 1,
+                    "mediatypeid": update_mediatypeid,
+                },
+            }
+        ],
     }
 
 
@@ -616,6 +683,7 @@ def ensure_action(
     userid: str,
     problem_mediatypeid: str,
     solution_mediatypeid: str,
+    update_mediatypeid: str,
     no_update: bool,
 ) -> str:
     existing = find_one(
@@ -628,7 +696,7 @@ def ensure_action(
         "actionid",
         f"action {action_name!r}",
     )
-    desired = desired_action(action_name, userid, problem_mediatypeid, solution_mediatypeid)
+    desired = desired_action(action_name, userid, problem_mediatypeid, solution_mediatypeid, update_mediatypeid)
 
     if existing:
         actionid = existing["actionid"]
@@ -676,6 +744,13 @@ def install(args: Args) -> None:
             "solution",
             args.no_update_existing,
         )
+        update_mediatypeid = ensure_media_type(
+            api,
+            UPDATE_MEDIA_TYPE_NAME,
+            args.bot_url,
+            "update",
+            args.no_update_existing,
+        )
 
         role_id = find_user_role(api, args.role_id)
         rights = get_all_host_group_rights(api)
@@ -687,6 +762,7 @@ def install(args: Args) -> None:
             usrgrpid,
             problem_mediatypeid,
             solution_mediatypeid,
+            update_mediatypeid,
             args.notification_user_password,
             args.no_update_existing,
         )
@@ -696,13 +772,19 @@ def install(args: Args) -> None:
             userid,
             problem_mediatypeid,
             solution_mediatypeid,
+            update_mediatypeid,
             args.no_update_existing,
         )
     finally:
         if logged_in:
             api.logout()
 
-    logging.info("Готово: Zabbix будет отправлять problem через %s и recovery через %s", PROBLEM_MEDIA_TYPE_NAME, SOLUTION_MEDIA_TYPE_NAME)
+    logging.info(
+        "Готово: Zabbix будет отправлять problem через %s, recovery через %s и update через %s",
+        PROBLEM_MEDIA_TYPE_NAME,
+        SOLUTION_MEDIA_TYPE_NAME,
+        UPDATE_MEDIA_TYPE_NAME,
+    )
 
 
 def main() -> int:

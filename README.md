@@ -4,8 +4,10 @@
 
 - `problem` отправляется обычным сообщением в комнату.
 - `solution` отправляется в Matrix thread под ранее отправленной проблемой.
+- `update` отправляется в Matrix thread под ранее отправленной проблемой.
 - Связка `problem_ident -> Matrix event_id` хранится в SQLite `./database/database.sqlite3`.
 - После успешной отправки `solution` запись о проблеме удаляется.
+- После успешной отправки `update` запись о проблеме сохраняется.
 
 ## Требования
 
@@ -147,6 +149,17 @@ sudo systemctl status zabtomat-bot
 }
 ```
 
+Для обновления проблемы:
+
+```json
+{
+  "message_type": "update",
+  "problem_ident": "12345",
+  "subject_text": "Updated: High CPU load on web-01",
+  "body_text": "User acknowledged the problem"
+}
+```
+
 Формат Matrix-сообщения:
 
 ````markdown
@@ -187,6 +200,7 @@ bot_10-07-26_10-00-00.log
 
 - media type `matrix-problem` для проблем;
 - media type `matrix-solution` для восстановлений;
+- media type `matrix-update` для обновлений проблем;
 - пользователя `matrix-notification`;
 - группу `Matrix notification users`;
 - action `Matrix notifications`.

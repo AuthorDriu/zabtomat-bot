@@ -60,10 +60,18 @@ async def receive_zabbix_notification(
             detail=f"Problem '{notification.problem_ident}' was not found in the database",
         )
 
-    event_id = await notifier.send_solution(
+    if notification.message_type == MessageType.solution:
+        event_id = await notifier.send_solution(
+            notification.subject_text,
+            notification.body_text,
+            reply_to_event_id,
+        )
+        await delete_problem(notification.problem_ident)
+        return {"status": "sent", "event_id": event_id, "reply_to_event_id": reply_to_event_id}
+
+    event_id = await notifier.send_update(
         notification.subject_text,
         notification.body_text,
         reply_to_event_id,
     )
-    await delete_problem(notification.problem_ident)
     return {"status": "sent", "event_id": event_id, "reply_to_event_id": reply_to_event_id}

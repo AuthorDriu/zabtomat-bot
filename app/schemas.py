@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class MessageType(str, Enum):
     problem = "problem"
     solution = "solution"
+    update = "update"
 
 
 class ZabbixNotification(BaseModel):
